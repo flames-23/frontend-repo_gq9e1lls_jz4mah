@@ -35,6 +35,94 @@ function Recenter({ center }) {
   return null
 }
 
+function TextInput({ label, type = 'text', value, onChange, placeholder }) {
+  return (
+    <label className="block text-sm">
+      <span className="text-gray-700">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1 w-full rounded border px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </label>
+  )
+}
+
+function AuthScreen({ onAuthed, backend }) {
+  const [mode, setMode] = useState('login') // 'login' | 'register'
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const canSubmit = password.length >= 6 && (email || phone)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!canSubmit) return
+    setLoading(true)
+    setError('')
+    try {
+      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login'
+      const payload = mode === 'register'
+        ? { name: name || undefined, email: email || undefined, phone: phone || undefined, password }
+        : { email: email || undefined, phone: phone || undefined, password }
+      const res = await fetch(`${backend}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({}))
+        throw new Error(msg.detail || 'Authentication failed')
+      }
+      const data = await res.json()
+      const token = data.access_token
+      const user = data.user
+      localStorage.setItem('madad_token', token)
+      localStorage.setItem('madad_user', JSON.stringify(user))
+      onAuthed({ token, user })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow p-6 space-y-4">
+        <div className="flex justify-center mb-2">
+          <div className="text-xl font-semibold">Madad</div>
+        </div>
+        <div className="flex bg-gray-100 rounded-lg p-1 text-sm">
+          <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-md ${mode==='login'?'bg-white shadow font-medium':''}`}>Login</button>
+          <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-md ${mode==='register'?'bg-white shadow font-medium':''}`}>Register</button>
+        </div>
+        <form className="space-y-3" onSubmit={handleSubmit}>
+          {mode === 'register' && (
+            <TextInput label="Full Name" value={name} onChange={setName} placeholder="e.g. Ali Raza" />
+          )}
+          <TextInput label="Email (optional)" type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
+          <TextInput label="Phone (optional)" value={phone} onChange={setPhone} placeholder="03xx-xxxxxxx" />
+          <TextInput label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" />
+
+          {error && <div className="text-sm text-red-600">{error}</div>}
+
+          <button disabled={!canSubmit || loading} className="w-full py-2.5 rounded bg-blue-600 text-white disabled:opacity-60">
+            {loading ? 'Please wait…' : (mode==='register' ? 'Create account' : 'Sign in')}
+          </button>
+        </form>
+        <p className="text-xs text-center text-gray-500">Use email or phone with a password. You can add the other later.</p>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [position, setPosition] = useState(null)
   const [vendors, setVendors] = useState([])
@@ -42,7 +130,35 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [token, setToken] = useState(null)
+  const [user, setUser] = useState(null)
+
   const backend = import.meta.env.VITE_BACKEND_URL || ''
+
+  // Restore auth
+  useEffect(() => {
+    const t = localStorage.getItem('madad_token')
+    const u = localStorage.getItem('madad_user')
+    if (t) setToken(t)
+    if (u) setUser(JSON.parse(u))
+  }, [])
+
+  // Verify token (optional; keeps session fresh)
+  useEffect(() => {
+    const verify = async () => {
+      if (!token) return
+      try {
+        const res = await fetch(`${backend}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok) throw new Error('session invalid')
+      } catch {
+        localStorage.removeItem('madad_token')
+        localStorage.removeItem('madad_user')
+        setToken(null)
+        setUser(null)
+      }
+    }
+    verify()
+  }, [token, backend])
 
   useEffect(() => {
     if (!navigator.geolocation) return
@@ -80,15 +196,36 @@ export default function App() {
 
   useEffect(() => {
     fetchNearby()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, serviceType])
 
   const center = useMemo(() => position || [24.8607, 67.0011], [position]) // Karachi default
 
+  const handleAuthed = ({ token, user }) => {
+    setToken(token)
+    setUser(user)
+  }
+
+  const logout = () => {
+    localStorage.removeItem('madad_token')
+    localStorage.removeItem('madad_user')
+    setToken(null)
+    setUser(null)
+  }
+
+  if (!token) {
+    return <AuthScreen onAuthed={handleAuthed} backend={backend} />
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col">
       <header className="p-3 bg-white shadow z-10 flex items-center gap-2">
-        <h1 className="font-semibold">Madad – All Services, One Map</h1>
+        <div>
+          <h1 className="font-semibold leading-tight">Madad</h1>
+          {user && (
+            <p className="text-xs text-gray-500">Signed in{user.name ? ` as ${user.name}` : ''}</p>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <select
             value={serviceType}
@@ -101,8 +238,9 @@ export default function App() {
             ))}
           </select>
           <button onClick={fetchNearby} className="px-3 py-1 bg-blue-600 text-white rounded">
-            Refresh
+            {loading ? 'Loading…' : 'Refresh'}
           </button>
+          <button onClick={logout} className="px-3 py-1 bg-gray-200 rounded">Logout</button>
         </div>
       </header>
 
@@ -150,7 +288,7 @@ export default function App() {
         </MapContainer>
       </div>
 
-      <footer className="p-2 text-center text-xs bg-white/80">Built for MVP validation. Karachi default if location not granted.</footer>
+      <footer className="p-2 text-center text-xs bg-white/80">Mobile-ready experience. Karachi default if location not granted.</footer>
     </div>
   )
 }
