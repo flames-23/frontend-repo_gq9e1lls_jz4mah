@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
@@ -16,6 +16,56 @@ const DefaultIcon = L.icon({
   iconAnchor: [12, 41]
 })
 L.Marker.prototype.options.icon = DefaultIcon
+
+// Fun, versatile color themes (no external API needed)
+const themes = {
+  emerald: {
+    name: 'Emerald',
+    primaryBg: 'bg-emerald-600',
+    primaryBgHover: 'hover:bg-emerald-700',
+    primaryText: 'text-emerald-700',
+    ring: 'focus:ring-emerald-600',
+    border: 'border-emerald-200',
+    chipActiveBorder: 'border-emerald-600'
+  },
+  sky: {
+    name: 'Sky',
+    primaryBg: 'bg-sky-600',
+    primaryBgHover: 'hover:bg-sky-700',
+    primaryText: 'text-sky-700',
+    ring: 'focus:ring-sky-600',
+    border: 'border-sky-200',
+    chipActiveBorder: 'border-sky-600'
+  },
+  fuchsia: {
+    name: 'Fuchsia',
+    primaryBg: 'bg-fuchsia-600',
+    primaryBgHover: 'hover:bg-fuchsia-700',
+    primaryText: 'text-fuchsia-700',
+    ring: 'focus:ring-fuchsia-600',
+    border: 'border-fuchsia-200',
+    chipActiveBorder: 'border-fuchsia-600'
+  },
+  amber: {
+    name: 'Amber',
+    primaryBg: 'bg-amber-600',
+    primaryBgHover: 'hover:bg-amber-700',
+    primaryText: 'text-amber-700',
+    ring: 'focus:ring-amber-600',
+    border: 'border-amber-200',
+    chipActiveBorder: 'border-amber-600'
+  },
+  lime: {
+    name: 'Lime',
+    primaryBg: 'bg-lime-600',
+    primaryBgHover: 'hover:bg-lime-700',
+    primaryText: 'text-lime-700',
+    ring: 'focus:ring-lime-600',
+    border: 'border-lime-200',
+    chipActiveBorder: 'border-lime-600'
+  }
+}
+const themeKeys = Object.keys(themes)
 
 const serviceLabels = {
   tow_truck: 'Tow Truck',
@@ -37,7 +87,7 @@ function Recenter({ center }) {
   return null
 }
 
-function TextInput({ label, type = 'text', value, onChange, placeholder }) {
+function TextInput({ label, type = 'text', value, onChange, placeholder, ringClass }) {
   return (
     <label className="block text-sm">
       <span className="text-gray-700">{label}</span>
@@ -46,32 +96,33 @@ function TextInput({ label, type = 'text', value, onChange, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-600"
+        className={`mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 ${ringClass}`}
       />
     </label>
   )
 }
 
-function CategoryChips({ active, onChange }) {
+function CategoryChips({ active, onChange, theme }) {
   return (
     <div className="w-full overflow-x-auto no-scrollbar">
       <div className="flex gap-2 px-3 py-2">
-        <Chip label="All" active={!active} onClick={() => onChange('')} />
+        <Chip label="All" active={!active} onClick={() => onChange('')} theme={theme} />
         {serviceKeys.map((k) => (
-          <Chip key={k} label={serviceLabels[k]} active={active === k} onClick={() => onChange(k)} />
+          <Chip key={k} label={serviceLabels[k]} active={active === k} onClick={() => onChange(k)} theme={theme} />
         ))}
       </div>
     </div>
   )
 }
 
-function Chip({ label, active, onClick }) {
+function Chip({ label, active, onClick, theme }) {
+  const t = themes[theme]
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full px-3 py-1.5 text-sm border ${
-        active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-200'
-      } shadow-sm`}
+      className={`shrink-0 rounded-full px-3 py-1.5 text-sm border shadow-sm ${
+        active ? `${t.primaryBg} text-white ${t.chipActiveBorder}` : 'bg-white text-gray-700 border-gray-200'
+      }`}
     >
       {label}
     </button>
@@ -89,7 +140,25 @@ function FAB({ children, onClick, className = '' }) {
   )
 }
 
-function AuthScreen({ onAuthed, onGuest, backend }) {
+function ThemeSelector({ theme, onChange }) {
+  return (
+    <div className="flex items-center gap-2">
+      {themeKeys.map((k) => (
+        <button
+          key={k}
+          onClick={() => onChange(k)}
+          className={`h-7 px-2 rounded-lg border text-xs ${
+            theme === k ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200'
+          }`}
+        >
+          {themes[k].name}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function AuthScreen({ onAuthed, onGuest, backend, theme }) {
   const [mode, setMode] = useState('login') // 'login' | 'register'
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -99,6 +168,7 @@ function AuthScreen({ onAuthed, onGuest, backend }) {
   const [error, setError] = useState('')
 
   const canSubmit = password.length >= 6 && (phone || email)
+  const t = themes[theme]
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -136,7 +206,7 @@ function AuthScreen({ onAuthed, onGuest, backend }) {
     <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-emerald-50 to-white p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-5">
         <div className="text-center space-y-1">
-          <div className="text-2xl font-bold text-emerald-700">Madad</div>
+          <div className={`text-2xl font-bold ${t.primaryText}`}>Madad</div>
           <p className="text-xs text-gray-500">Pakistan’s map for help — tow, mechanic, hotel, medical and more</p>
         </div>
         <div className="flex bg-gray-100 rounded-lg p-1 text-sm">
@@ -145,15 +215,15 @@ function AuthScreen({ onAuthed, onGuest, backend }) {
         </div>
         <form className="space-y-3" onSubmit={handleSubmit}>
           {mode === 'register' && (
-            <TextInput label="Full Name" value={name} onChange={setName} placeholder="e.g. Ali Raza" />
+            <TextInput label="Full Name" value={name} onChange={setName} placeholder="e.g. Ali Raza" ringClass={t.ring} />
           )}
-          <TextInput label="Phone (preferred)" value={phone} onChange={setPhone} placeholder="03xx-xxxxxxx" />
-          <TextInput label="Email (optional)" type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-          <TextInput label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" />
+          <TextInput label="Phone (preferred)" value={phone} onChange={setPhone} placeholder="03xx-xxxxxxx" ringClass={t.ring} />
+          <TextInput label="Email (optional)" type="email" value={email} onChange={setEmail} placeholder="you@example.com" ringClass={t.ring} />
+          <TextInput label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" ringClass={t.ring} />
 
           {error && <div className="text-sm text-red-600">{error}</div>}
 
-          <button disabled={!canSubmit || loading} className="w-full py-2.5 rounded-lg bg-emerald-600 text-white disabled:opacity-60">
+          <button disabled={!canSubmit || loading} className={`w-full py-2.5 rounded-lg text-white disabled:opacity-60 ${t.primaryBg} ${t.primaryBgHover}`}>
             {loading ? 'Please wait…' : (mode==='register' ? 'Create account' : 'Sign in')}
           </button>
         </form>
@@ -168,11 +238,14 @@ function AuthScreen({ onAuthed, onGuest, backend }) {
           <button disabled className="py-2 rounded-lg border bg-white text-gray-600 disabled:opacity-70">Apple (soon)</button>
         </div>
 
-        <button onClick={onGuest} className="w-full py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+        <button onClick={onGuest} className={`w-full py-2 rounded-lg border text-emerald-700 hover:bg-emerald-50 ${t.border}`}>
           Continue as Guest
         </button>
 
         <p className="text-[11px] text-center text-gray-500">Guest can browse the map. Sign in to add vendors and manage subscriptions.</p>
+        <div className="text-[11px] text-center text-gray-500">
+          Payments: bank transfer will be available. No card or API required.
+        </div>
       </div>
     </div>
   )
@@ -189,6 +262,8 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [showAuthGate, setShowAuthGate] = useState(true)
 
+  const [theme, setTheme] = useState('emerald')
+
   const backend = import.meta.env.VITE_BACKEND_URL || ''
 
   // Restore auth
@@ -197,8 +272,10 @@ export default function App() {
     const u = localStorage.getItem('madad_user')
     if (t) setToken(t)
     if (u) setUser(JSON.parse(u))
-    // If a token exists, hide gate; otherwise keep it until user chooses guest
     setShowAuthGate(!t)
+
+    const savedTheme = localStorage.getItem('madad_theme')
+    if (savedTheme && themes[savedTheme]) setTheme(savedTheme)
   }, [])
 
   // Verify token (optional; keeps session fresh)
@@ -278,12 +355,19 @@ export default function App() {
     setShowAuthGate(true)
   }
 
+  const t = themes[theme]
+
+  const handleThemeChange = (k) => {
+    setTheme(k)
+    localStorage.setItem('madad_theme', k)
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col">
       {/* Top bar */}
       <header className="p-3 bg-white shadow z-10 flex items-center gap-3">
         <div>
-          <h1 className="font-semibold leading-tight text-emerald-700">Madad</h1>
+          <h1 className={`font-semibold leading-tight ${t.primaryText}`}>Madad</h1>
           <p className="text-[11px] text-gray-500">
             {user ? (
               <>Signed in{user.name ? ` as ${user.name}` : ''}</>
@@ -293,7 +377,8 @@ export default function App() {
           </p>
         </div>
         <div className="ml-auto hidden sm:flex items-center gap-2">
-          <button onClick={fetchNearby} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg">
+          <ThemeSelector theme={theme} onChange={handleThemeChange} />
+          <button onClick={fetchNearby} className={`px-3 py-1.5 text-white rounded-lg ${t.primaryBg} ${t.primaryBgHover}`}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
           {user ? (
@@ -306,7 +391,7 @@ export default function App() {
 
       {/* Category chips */}
       <div className="bg-white/90 border-b">
-        <CategoryChips active={serviceType} onChange={setServiceType} />
+        <CategoryChips active={serviceType} onChange={setServiceType} theme={theme} />
       </div>
 
       {error && (
@@ -336,7 +421,7 @@ export default function App() {
                   {v.address && <div className="text-xs">{v.address}</div>}
                   <div className="flex gap-2 pt-1">
                     {v.phone && (
-                      <a href={`tel:${v.phone}`} className="px-2 py-1 bg-emerald-600 text-white rounded text-xs">Call Now</a>
+                      <a href={`tel:${v.phone}`} className={`px-2 py-1 text-white rounded text-xs ${t.primaryBg} ${t.primaryBgHover}`}>Call Now</a>
                     )}
                     <a
                       className="px-2 py-1 bg-gray-800 text-white rounded text-xs"
@@ -346,6 +431,7 @@ export default function App() {
                       Get Directions
                     </a>
                   </div>
+                  <div className="pt-1 text-[11px] text-gray-500">Vendors will soon be able to pay via bank transfer to appear here.</div>
                 </div>
               </Popup>
             </Marker>
@@ -354,14 +440,14 @@ export default function App() {
 
         {/* Floating buttons */}
         <div className="absolute right-3 bottom-3 flex flex-col gap-2">
-          <FAB onClick={fetchNearby}>🔄</FAB>
-          <FAB onClick={() => {
+          <button onClick={fetchNearby} className={`rounded-full shadow-lg text-white p-3 active:scale-95 transition ${t.primaryBg} ${t.primaryBgHover}`}>🔄</button>
+          <button onClick={() => {
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition((pos) => {
                 setPosition([pos.coords.latitude, pos.coords.longitude])
               })
             }
-          }}>📍</FAB>
+          }} className={`rounded-full shadow-lg text-white p-3 active:scale-95 transition ${t.primaryBg} ${t.primaryBgHover}`}>📍</button>
         </div>
       </div>
 
@@ -369,9 +455,18 @@ export default function App() {
 
       {showAuthGate && (
         <div className="fixed inset-0 z-50">
-          <AuthScreen onAuthed={handleAuthed} onGuest={handleGuest} backend={backend} />
+          <AuthScreen onAuthed={handleAuthed} onGuest={handleGuest} backend={backend} theme={theme} />
         </div>
       )}
+
+      {/* Safety net to ensure Tailwind keeps these classes in the build */}
+      <div className="hidden">
+        bg-emerald-600 hover:bg-emerald-700 text-emerald-700 focus:ring-emerald-600 border-emerald-200 border-emerald-600
+        bg-sky-600 hover:bg-sky-700 text-sky-700 focus:ring-sky-600 border-sky-200 border-sky-600
+        bg-fuchsia-600 hover:bg-fuchsia-700 text-fuchsia-700 focus:ring-fuchsia-600 border-fuchsia-200 border-fuchsia-600
+        bg-amber-600 hover:bg-amber-700 text-amber-700 focus:ring-amber-600 border-amber-200 border-amber-600
+        bg-lime-600 hover:bg-lime-700 text-lime-700 focus:ring-lime-600 border-lime-200 border-lime-600
+      </div>
     </div>
   )
 }
